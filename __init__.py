@@ -1,6 +1,8 @@
 ### Copyright     2011-2013 Magus Freston, Domino Marama, and Gaia Clary
 ### Modifications 2014-2015 Gaia Clary
 ### Modification  2015      Matrice Laville
+### Modified by Manfred Aabye (2025)
+### This version is a modified fork of Avastar 1, adapted for Blender 4.3+
 ###
 ### This file is part of Avastar 1.
 ###
@@ -26,14 +28,13 @@
 bl_info = {
     "name": "Avastar",
     "author": "Machinimatrix",
-    "version": (2, 91, 66),
-    "blender": (2, 81, 0),
-    "api": 36147,
+    "version": (3, 0, 0),
+    "blender": (4, 3, 0),
     "location": "Add Menu, 3D View Properties, Property sections and Tools",
     "description": "Character creation & animation for SL and OpenSim",
     "show_expanded": True,
-    "wiki_url":  "https://avastar.online/",
-    "tracker_url": "https://support.machinimatrix.org/tickets/",
+    "wiki_url":  "https://github.com/ManfredAabye/avastar",
+    "tracker_url": "https://github.com/ManfredAabye/avastar",
     "category": "Object"}
 
 if "bpy" in locals():
@@ -4630,7 +4631,8 @@ class AVASTAR_MT_TemplatesMenu(bpy.types.Menu):
     bl_label = "Open Template..."
 
     def draw(self, context):
-        blender_scripts  = bpy.utils.user_resource('SCRIPTS', "presets")
+        blender_scripts = bpy.utils.user_resource('SCRIPTS', path="presets")
+
         destdir          = os.path.join(blender_scripts, __name__)
         path = os.path.join(destdir,"*.blend")
         log.warning("Path: %s" % path)
@@ -4640,23 +4642,16 @@ class AVASTAR_MT_TemplatesMenu(bpy.types.Menu):
         layout.operator_context = 'EXEC_SCREEN'
 
         for template in templates:
-
             name = os.path.basename(template)
             name = name[0:name.index(".")]
             name = name.replace("_", " ")
 
             if BLENDER_VERSION > 26900:
                 props = layout.operator("wm.read_homefile", text=name, icon=ICON_FILE)
-
-
-
-
             else:
                 props = layout.operator("wm.open_mainfile", text=name, icon=ICON_FILE)
                 props.load_ui=False
             props.filepath=template
-
-
 
 def menu_import_avastar_devkits(self, context):
     self.layout.menu(AVASTAR_MT_DevkitMenu.bl_idname, text="Devkit", icon=ICON_OUTLINER_OB_ARMATURE)
@@ -4895,23 +4890,25 @@ def unregister_WeightsPropGroup_attributes():
     for bone in bones:
         delattr(WeightsPropGroup, bone)
 
-
-
 def factory_reset(category):
-    import shutil, tempfile
+    import shutil, tempfile, os
     avastar_init    = __file__
     avastar_home    = os.path.dirname(avastar_init)
     avastar_presets = os.path.join(avastar_home, "presets")
-    srcdir          = os.path.join(avastar_presets,category)
-    blender_scripts = bpy.utils.user_resource('SCRIPTS', "presets")
+    srcdir          = os.path.join(avastar_presets, category)
+    blender_scripts = bpy.utils.user_resource('SCRIPTS', path="presets")
     destdir         = os.path.join(blender_scripts, __name__, category)
+
+    if not os.path.exists(srcdir):
+        print(f"Preset-Quelle nicht gefunden: {srcdir}")
+        return
 
     if os.path.exists(destdir) and os.path.isdir(destdir):
         tmp = tempfile.mktemp(dir=os.path.dirname(destdir))
         shutil.move(destdir, tmp)
         shutil.rmtree(tmp)
-    shutil.copytree(srcdir, destdir)
 
+    shutil.copytree(srcdir, destdir)
 
 def import_submodule(module_name, package_name='avastar'):
     if not 'importlib' in locals():
@@ -5088,9 +5085,12 @@ def unregister_WeightsPropGroup_attributes():
 
 
 def register():
-    from bpy.utils import register_class
+    import os
+    from bpy.utils import register_class, user_resource
+
     const.register_icons()
     register_submodules()
+
     for cls in classes:
         registerlog.info("Register class %s" % cls)
         register_class(cls)
@@ -5099,69 +5099,69 @@ def register():
     register_RetargetPropGroup_attributes()
     register_MocapPropGroup_attributes()
 
+    # Menüs einfügen
     bpy.types.TOPBAR_MT_help.prepend(menu_help_avastar)
     bpy.types.TOPBAR_MT_file.prepend(menu_add_templates)
     bpy.types.VIEW3D_MT_add.append(menu_add_avastar)
-
     bpy.types.TOPBAR_MT_file_export.prepend(menu_export_collada)
     bpy.types.TOPBAR_MT_file_import.append(menu_import_avastar_shape)
     bpy.types.TOPBAR_MT_file_import.append(menu_import_avastar_devkits)
-
     bpy.types.TOPBAR_MT_file_export.append(sl_skeleton_func_export)
     bpy.types.TOPBAR_MT_file_import.append(sl_skeleton_func_import)
     bpy.types.TOPBAR_MT_file_import.append(sl_animation_func_import)
-
     bpy.types.VIEW3D_MT_editor_menus.append(copypaste_pose)
 
+    # Initialisierung
     BLinitialisation()
 
     has_warnings = False
     if bpy.app.version_cycle != 'release':
         log.warning(SEPARATOR)
-        log.warning("Avastar:  Your Blender instance is in state '%s'" % bpy.app.version_cycle)
-        log.warning("          We recommend to install this addon only on official")
-        log.warning("          Blender releases from Blender.org")
+        log.warning(f"Avastar:  Your Blender instance is in state '{bpy.app.version_cycle}'")
+        log.warning("          We recommend to install this addon only on official Blender releases from Blender.org")
         has_warnings = True
 
     bpy.utils.register_manual_map(avastar_docs)
 
-
+    # Tastenkombis
     wm = bpy.context.window_manager
     kc = wm.keyconfigs.addon
     if kc:
-        km = wm.keyconfigs.addon.keymaps.new(name="3D View", space_type='VIEW_3D')
+        km = kc.keymaps.new(name="3D View", space_type='VIEW_3D')
         kmi = km.keymap_items.new(ButtonRefreshShape.bl_idname, 'Q', 'PRESS', alt=True)
-        addon_keymaps.append((km,kmi))
+        addon_keymaps.append((km, kmi))
 
-    avastar_init    = __file__
-    avastar_home    = os.path.dirname(avastar_init)
-    avastar_apptemplates = os.path.join(avastar_home, "apptemplates")
-    blender_scripts  = bpy.utils.user_resource('SCRIPTS', "presets")
+    # Dateioperationen
+    avastar_init = __file__
+    avastar_home = os.path.dirname(avastar_init)
+
+    blender_scripts = user_resource('SCRIPTS', path="presets")
+    avastar_presets = os.path.join(avastar_home, "presets")
+    destdir_presets = os.path.join(blender_scripts, __name__)
+    util.copydir(avastar_presets, destdir_presets, overwrite=True)
 
     avastar_themes = os.path.join(avastar_home, "interface_theme")
-    destdir        = os.path.join(blender_scripts, "interface_theme")
-    util.copydir(avastar_themes, destdir, overwrite=True)
+    destdir_themes = os.path.join(blender_scripts, "interface_theme")
+    util.copydir(avastar_themes, destdir_themes, overwrite=True)
 
-    avastar_presets = os.path.join(avastar_home, "presets")
-    destdir         = os.path.join(blender_scripts, __name__)
-    util.copydir(avastar_presets, destdir, overwrite=True)
+    avastar_apptemplates = os.path.join(avastar_home, "apptemplates")
 
-    if True: #TODO: uncomment this-> get_blender_revision() < 279000:
-
-        util.copyblend(avastar_apptemplates, destdir, overwrite=True)
+    if True:  # oder eine echte Bedingung wie get_blender_revision() < 279000
+        util.copyblend(avastar_apptemplates, destdir_presets, overwrite=True)
     else:
-
-        path_app_templates = bpy.utils.user_resource(
-            'SCRIPTS', os.path.join("startup", "bl_app_templates_user"),
-            create=True,
+        path_app_templates = user_resource(
+            'SCRIPTS',
+            path=os.path.join("startup", "bl_app_templates_user"),
+            create=True
         )
         util.copydir(avastar_apptemplates, path_app_templates, overwrite=True)
-        
-        if os.path.exists(destdir):
-            os.rename(destdir, destdir+'_old')
+
+        if os.path.exists(destdir_presets):
+            os.rename(destdir_presets, destdir_presets + '_old')
 
     if has_warnings:
         log.warning(SEPARATOR)
+
 
 def register_handlers():
 
