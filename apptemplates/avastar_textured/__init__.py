@@ -10,7 +10,7 @@ bl_info = {
     "name": "Avastar 2 Template",
     "author": "Machinimatrix",
     "version": (1, 0),
-    "blender": (2, 78, 0),
+    "blender": (4, 3, 0),
     "location": "View3D > Toolshelf, Properties editor",
     "description": "Avastar 2 Template",
     "warning": "",
